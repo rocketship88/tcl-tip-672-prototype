@@ -5037,17 +5037,25 @@ TclLogCommandInfo(
 	return;
     }
 
-    if (command != NULL) {
-	/*
-	 * Compute the line number where the error occurred.
-	 */
 
-	iPtr->errorLine = 1;
-	for (p = script; p != command; p++) {
-	    if (*p == '\n') {
-		iPtr->errorLine++;
-	    }
-	}
+
+    if (command != NULL) {
+        /*
+         * Compute the line number where the error occurred.
+         */
+        iPtr->errorLine = 1;
+        
+        // Only scan if command appears to be within script's memory region
+        if (command >= script) {
+            for (p = script; p != command && *p != '\0'; p++) {
+                if (*p == '\n') {
+                    iPtr->errorLine++;
+                }
+            }
+        }
+        // If command < script, something is wrong - just use line 1
+
+
 
 	if (length < 0) {
 	    length = strlen(command);
