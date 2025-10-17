@@ -49,8 +49,7 @@ The sum of 25 and 50 is 75
 % calculate 5 3
 25
 ```
-
-## Bytecode Compilation Proof
+## Bytecode Compilation
 
 The `$(...)` syntax produces identical, optimized bytecode:
 ```tcl
@@ -73,6 +72,61 @@ ByteCode 0x..., refCt 1, epoch 17, interp 0x... (epoch 17)
 ```
 
 The compiler recognizes the expression pattern and generates direct arithmetic operations with no runtime parsing overhead.
+
+
+
+
+### Nested example and bytecode
+```tcl
+% set a 1; set b 2; set c $( $a + $b + [string length [string range abcdefghijk 1 end-$($a+3)]])
+9
+# note, there's no reason to want $(...$(...)) since $(...()) will work as intended
+
+% tcl::unsupported::disassemble script {set a 1; set b 2; set c $( $a + $b + [string length [string range abcdefghijk 1 end-$($a+3)]])}
+ByteCode 0x13d1307ce70, refCt 1, epoch 22, interp 0x13d0d6c1990 (epoch 22)
+  Source "set a 1; set b 2; set c $( $a + $b + [string length [st..."
+  Cmds 7, src 94, inst 76, litObjs 8, aux 0, stkDepth 7, code/src 0.00
+  Commands 7:
+      1: pc 0-11, src 0-6        2: pc 12-23, src 9-15
+      3: pc 24-74, src 18-93        4: pc 29-73, src 105969-106042
+      5: pc 42-72, src 105987-106040        6: pc 42-71, src 106002-106039
+      7: pc 57-68, src -65567--65557
+  Command 1: "set a 1..."
+    (0) push 0 	# "a"
+    (5) push 1 	# "1"
+    (10) storeStk 
+    (11) pop 
+  Command 2: "set b 2..."
+    (12) push 2 	# "b"
+    (17) push 3 	# "2"
+    (22) storeStk 
+    (23) pop 
+  Command 3: "set c $( $a + $b + [string length [string range abcdefg..."
+    (24) push 4 	# "c"
+  Command 4: "expr { $a + $b + [string length [string range abcdefghi..."
+    (29) push 0 	# "a"
+    (34) loadStk 
+    (35) push 2 	# "b"
+    (40) loadStk 
+    (41) add 
+  Command 5: "string length [string range abcdefghijk 1 end-$($a+3)]..."
+  Command 6: "string range abcdefghijk 1 end-$($a+3)..."
+    (42) push 5 	# "abcdefghijk"
+    (47) push 1 	# "1"
+    (52) push 6 	# "end-"
+  Command 7: "expr {$a+3}..."
+    (57) push 0 	# "a"
+    (62) loadStk 
+    (63) push 7 	# "3"
+    (68) add 
+    (69) strcat 2 
+    (71) strrange 
+    (72) strlen 
+    (73) add 
+    (74) storeStk 
+    (75) done 
+
+```
 
 ## Implementation Details
 
