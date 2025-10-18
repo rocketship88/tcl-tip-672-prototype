@@ -135,6 +135,15 @@ Note that in this example, there **is** a nested $(...) but it is inside of a [.
 
 The best way of thinking about the $(...) construct is that it is like a macro expansion except there is no preprocessor phase like in the C compiler #define macros.
 
+### Complex Multi-line Expressions
+```tcl
+# Natural multi-line formatting without backslashes (but can be added if desired)
+set total $(
+    $price * $quantity +
+    ( $shipping - $discount )
+)
+```
+
 ## Implementation Details
 
 ### Files Modified
