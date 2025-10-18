@@ -4,7 +4,7 @@ This repository contains a working prototype implementation of [TIP 672](https:/
 
 ## Overview
 
-The `$(...)` syntax provides a cleaner, more modern way to evaluate expressions in Tcl:
+The `$(...)` syntax provides a cleaner, more modern, and more secure way to evaluate expressions in Tcl:
 ```tcl
 # Traditional syntax
 set result [expr {$a + $b * $c}]
@@ -22,6 +22,7 @@ puts "Total: $($sum + $tax)"
 ✅ **Proper error handling** - Clear error messages without crashes  
 ✅ **Variable scoping** - Respects Tcl's normal scoping rules  
 ✅ **Interactive mode** - Handles incomplete input correctly  
+✅ **More Secure** - Automatically encloses expressions inside braces 
 
 ## Examples
 
@@ -71,7 +72,7 @@ ByteCode 0x..., refCt 1, epoch 17, interp 0x... (epoch 17)
     (5) done
 ```
 
-The compiler recognizes the expression pattern and generates direct arithmetic operations with no runtime parsing overhead.
+The compiler recognizes the expression pattern and generates direct arithmetic operations with no runtime parsing overhead. Because the expressions are passed on to expr inside of braces, as can be seen above in Command 2,  there is also much less chance of security problems. If a braced expr won't accept it, neither will $(...).
 
 
 
@@ -80,7 +81,9 @@ The compiler recognizes the expression pattern and generates direct arithmetic o
 ```tcl
 % set a 1; set b 2; set c $( $a + $b + [string length [string range abcdefghijk 1 end-$($a+3)]])
 9
-# note, there's no reason to want $(...$(...)) since $(...()) will work as intended
+# note, there's no reason to use a nested $(...) as for example, $( $a * $($b+$c) )
+# since  $( $a * ($b+$c) ) will be accepted, and would be more efficient anyway.
+# If one is entered, it (actually expr) will throw an error for an invalid $.
 
 % tcl::unsupported::disassemble script {set a 1; set b 2; set c $( $a + $b + [string length [string range abcdefghijk 1 end-$($a+3)]])}
 ByteCode 0x13d1307ce70, refCt 1, epoch 22, interp 0x13d0d6c1990 (epoch 22)
@@ -127,6 +130,10 @@ ByteCode 0x13d1307ce70, refCt 1, epoch 22, interp 0x13d0d6c1990 (epoch 22)
     (75) done 
 
 ```
+
+Note that in this example, there **is** a nested $(...) but it is inside of a [...] command substitution. Also note that it efficiently processes the end- which it concatonates to the single numerical result needed for a valid index expression. It is, of course, just the same as doing end-[expr {...}] which is pefectly valid tcl syntax.
+
+The best way of thinking about the $(...) construct is that it is like a macro expansion except there is no preprocessor phase like in the C compiler #define macros.
 
 ## Implementation Details
 
