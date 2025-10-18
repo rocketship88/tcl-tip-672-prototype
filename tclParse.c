@@ -1501,15 +1501,7 @@ Tcl_ParseVarName(
     char *synthetic = Tcl_Alloc(syntheticLen + 1);
     
     memcpy(synthetic, "[expr {", 7);
-// Copy expression, replacing newlines with spaces
-    Tcl_Size i, j = 7;
-    for (i = 0; i < exprLen; i++) {
-        if (exprStart[i] == '\n') {
-            synthetic[j++] = ' ';  // Replace newline with space
-        } else {
-            synthetic[j++] = exprStart[i];
-        }
-    }
+	memcpy(synthetic + 7, exprStart, exprLen);
     memcpy(synthetic + 7 + exprLen, "}]", 3);
     synthetic[syntheticLen] = '\0';
     
