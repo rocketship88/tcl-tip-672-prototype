@@ -256,11 +256,16 @@ The prototype has been tested with:
 
 ## Viewing the Changes
 
-To see exactly what was modified:
+To see exactly what was modified from the original Tcl source to implement the $(expr) syntax:
 
-1. Click on the "Commits" link
+**[View complete implementation diff](https://github.com/rocketship88/tcl-tip-672-prototype/commit/7dd22b8cf76a82c65b6c5751b1de2b7058477365)**
+
+This shows all changes made to `tclParse.c` and `tclNamesp.c`. in the first commit. Additional refinements and improvements are visible in subsequent commits. As of this time, there is one change to tclParse.c as well. Clicking on that commit, one can see what changed there.
+
+You can also:
+1. Click on the "Commits" link above
 2. Select the commit "Implement TIP 672: $(expr) syntax for expression evaluation"
-3. View the side-by-side diff of all changes
+3. Use the settings icon (top right of diff view) to switch between unified and split views
 
 ## Questions for Tcl Core Team
 
