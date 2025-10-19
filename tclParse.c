@@ -1453,12 +1453,12 @@ Tcl_ParseVarName(
     const char *exprStart = src + 1;
     const char *exprEnd;
     int parenDepth = 1;
+	int bracketDepth = 0;
     const char *dollarParenStart = src - 1;  // Points to the '$'
     
     src++;
     numBytes--;
-    
-    // Find matching close paren
+        // Find matching close paren
     while (numBytes > 0 && parenDepth > 0) {
         char ch = *src;
         
@@ -1468,12 +1468,16 @@ Tcl_ParseVarName(
         }
         
         if (ch == '(') {
-            parenDepth++;
+            if(bracketDepth<=0)parenDepth++; // parens inside command substitutions [...] don't count for balancing, and won't need escaping
         } else if (ch == ')') {
-            parenDepth--;
+            if(bracketDepth<=0)parenDepth--;
             if (parenDepth == 0) {
                 break;
             }
+        } else if (ch == ']') {
+              bracketDepth--;  // these 2 checks tell us if we're in a [...] command substitution
+        } else if (ch == '[') {
+              bracketDepth++;  
         } else if (ch == '\\' && numBytes > 1) {
             src++;
             numBytes--;
@@ -1481,6 +1485,7 @@ Tcl_ParseVarName(
         src++;
         numBytes--;
     }    
+
     if (parenDepth != 0) {
         // Error: unmatched paren
         if (parsePtr->interp != NULL) {
