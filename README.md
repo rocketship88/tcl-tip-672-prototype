@@ -247,10 +247,37 @@ set x [set ($varname)] # Command substitution
 ```
 
 This is an extremely rare edge case—empty array names are almost never used in practice.
+### 4. Parenthesis Balancing in Expressions
+
+Parentheses within `$(...)` must be balanced or escaped, similar to how braces must be balanced within `{...}` blocks.
+
+**Example requiring escape:**
+```tcl
+# Unbalanced paren in string literal - must escape
+% set result $([string length "abc\(def"] + 1)
+8
+
+% expr {[string length "abc\(def"] + 1}
+8
+% expr {[string length "abc(def"] + 1}
+8
+
+% set result $([string length "abc(def"] + 1)
+> )
+unbalanced close paren
+in expression "... length "abc(def"] + 1)
+"
+```
+
+This is consistent with Tcl's existing requirement that braces must be balanced within `{...}` blocks. But it would be a change to the 12 rules, which would be part of the additonal rule for '$(expression)'. Notice that expr treats the \\( as a single ( because of the recursive command substitution. Both forms when escaped produce the same result, but expr doesn't require the parens to be balanced, while $(...) does.
+
+**Note:** We have not yet verified how Jim Tcl handles this edge case.
 
 ## Precedent
 
-[Jim Tcl](http://jim.tcl.tk/) has successfully used the `$(...)` syntax for years with no reported issues, demonstrating real-world viability.
+[Jim Tcl](http://jim.tcl.tk/) has successfully used the `$(...)` syntax for years demonstrating real-world viability.
+
+
 
 ## Testing
 
