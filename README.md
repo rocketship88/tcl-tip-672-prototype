@@ -210,6 +210,12 @@ The synthetic string `[expr {expression}]` is allocated but not tracked for clea
 - Add a cleanup tracking field to `Tcl_Parse` structure (acceptable for Tcl 9.x)
 - Implement thread-local side table for synthetic string management
 
+Note that this memory leak only occurs if the source code using a '$(...)' is redefined. Once code is compiled, there is no additional memory and the synthetic string might be used over and over, for example, if there are many thrown errors such as undefined variables in the expression. 
+
+Provided the '$(...)' use is not in a loop of eval's or in procedures that are redefined constantly, such as in a loop doing source statements, there will be no additional memory used. For each use of '$(...)' there will be an allocation of the size of the ... expression + ~10 bytes. Calling a procedure (or method) over and over that has a '$(...)' expression will not allocate any additional memory per call since the bytecode won't be changing, so no reparse or recompile is performed. 
+
+Eventually, this might be handled by using the bytecode epoch to know when bytecode is invalidated. If one really must use eval or source in a loop, then one should revert to using expr instead.
+
 ### 2. Error Messages Show Synthetic Command
 
 When an expression evaluation error occurs, the error message shows the synthetic command rather than the original:
