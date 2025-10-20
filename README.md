@@ -253,11 +253,13 @@ set x [set ($varname)] # Command substitution
 ```
 
 This is an extremely rare edge case—empty array names are almost never used in practice.
-###  Parenthesis Balancing in Expressions
+###  Parenthesis and Brace Balancing in Expressions
 
-Parentheses within `$(...)` must be balanced, but only if they are outside of (possibly nested) command [...[...]...] substitutions. That is just par for parenthesis in everyday expression usage. However, inside of (possibly nested) brackets, there can be quoted or unquoted strings and these may have unbalanced parenthesis.
+Parentheses within `$(...)` must be balanced, but only if they are outside of (possibly nested) command `[...[...]...]` substitutions. That is just par for parenthesis in everyday expression usage. However, inside of (possibly nested) brackets, there can be quoted or unquoted strings and these may have unbalanced parenthesis.
 
-**Example not requiring escape:**
+Braces, on the other hand, will need to be balanced exactly the same as they do when using `[expr {...}]` since `$(...)` is identical. This means that just as `[expr {[string length "abc\{def"] + 1}]` will need an escape for unbalanced braces, so it is with `$(...)`. This is just the way Tcl works. So, in this case, one would also need to escape the unbalanced brace as `$([string length "abc\{def"] + 1)`.
+
+**Example not requiring escape for parens, but needing one for a brace:**
 ```tcl
 # Unbalanced paren in string literal - need not escape, but to do so causes no change
 % set result $([string length "abc(def"] + 1)
@@ -272,6 +274,10 @@ Parentheses within `$(...)` must be balanced, but only if they are outside of (p
 % expr {[string length "abc(def"] + 1}
 8
 
+% puts $([string length "abc\{def"] + 1)
+8
+% puts [expr {[string length "abc\{def"] + 1}]
+8
 ```
 
 ## Precedent
