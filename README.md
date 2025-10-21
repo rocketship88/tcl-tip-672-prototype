@@ -259,6 +259,8 @@ Parentheses within `$(...)` must be balanced, but only if they are outside of (p
 
 Braces, on the other hand, will need to be balanced exactly the same as they do when using `[expr {...}]` since `$(...)` is identical. This means that just as `[expr {[string length "abc\{def"] + 1}]` will need an escape for unbalanced braces, so it is with `$(...)`. This is just the way Tcl works. So, in this case, one would also need to escape the unbalanced brace as `$([string length "abc\{def"] + 1)`.
 
+Unfortunately, at present, expressions that do relational compares against literal quoted strings, and not inside of [commands] will stil need parens to be escaped, for example `set x $("1\)\}" eq "1\)\}")` but this may be fixed although it will require some tricky bookkeeping. Braces in these litteral strings have always needed to be escaped in expr and so also here too.
+
 **Example not requiring escape for parens, but needing one for a brace:**
 ```tcl
 # Unbalanced paren in string literal - need not escape, but to do so causes no change
