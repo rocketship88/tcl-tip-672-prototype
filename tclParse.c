@@ -1477,9 +1477,9 @@ Tcl_ParseVarName(
             if (parenDepth == 0) {
                 break;
             }
-        } else if (ch == ']') {
-              bracketDepth--;  // these 2 checks tell us if we're in a [...] command substitution
-        } else if (ch == '[') {
+        } else if (ch == ']'  && betweenQuotes == 0) {
+              bracketDepth--;  // these 2 checks tell us if we're in a [...] command substitution, don't adjust if inside quotes
+        } else if (ch == '['  && betweenQuotes == 0) {
               bracketDepth++;  
         } else if (ch == '\\' && numBytes > 1) {
             src++;
