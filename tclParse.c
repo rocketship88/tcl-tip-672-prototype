@@ -1454,6 +1454,7 @@ Tcl_ParseVarName(
     const char *exprEnd;
     int parenDepth = 1;
 	int bracketDepth = 0;
+	int betweenQuotes = 0; // only important if using string relationals, eq, ne, etc. and using "literal \("
     const char *dollarParenStart = src - 1;  // Points to the '$'
     
     src++;
@@ -1468,9 +1469,11 @@ Tcl_ParseVarName(
         }
         
         if (ch == '(') {
-            if(bracketDepth<=0)parenDepth++; // parens inside command substitutions [...] don't count for balancing, and won't need escaping
+            if(bracketDepth<=0 && betweenQuotes == 0)parenDepth++; // parens inside command substitutions [...] don't count for balancing, or with "xxx" and won't need escaping
+        } else if (bracketDepth == 0 && ch == '"') {
+            betweenQuotes = 1 - betweenQuotes;
         } else if (ch == ')') {
-            if(bracketDepth<=0)parenDepth--;
+            if(bracketDepth<=0 && betweenQuotes == 0)parenDepth--;
             if (parenDepth == 0) {
                 break;
             }
@@ -1484,8 +1487,7 @@ Tcl_ParseVarName(
         }
         src++;
         numBytes--;
-    }    
-
+    }
     if (parenDepth != 0) {
         // Error: unmatched paren
         if (parsePtr->interp != NULL) {
