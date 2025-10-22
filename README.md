@@ -22,7 +22,20 @@ puts "Total: $($sum + $tax)"
 ✅ **Proper error handling** - Clear error messages without crashes  
 ✅ **Variable scoping** - Respects Tcl's normal scoping rules  
 ✅ **Interactive mode** - Handles incomplete input correctly  
-✅ **More Secure** - Automatically encloses expressions inside braces 
+✅ **More Secure** - Automatically encloses expressions inside braces
+
+✅ **Compatibility Mode** - `new` Configurable as `$(...)` or `$=(...)`
+
+
+### Configuration
+```tcl
+// ===== Configuration for expression substitution syntax =====
+#define EXPR_SUBST_MODE 1           // 1 = $(expr), 2 = $X(expr)
+#define EXPR_SUBST_CHAR '='         // Character for mode 2: '^', '=', '@', etc.
+```
+Since the empty array variable name can be null, that means it also uses the syntax `$(...)` causing a potential conflict. The file **tclParse.c** at round line ~100 now can be configured as shown above, which then eliminates the conflict. One can choose among several choices as shown. Once the core team makes a decision on TIP 672, the configuration can be adjusted.
+
+Note, there is now a standard .test file included which it is not paramaterized and one would simply use a text editor replace all of `$(` with the chosen configuration, such as `$=(` and then run the test suite. If mode is 1 (as delivered), then the the feature is disabled and reverts to `$(...)`.
 
 ## Examples
 
@@ -35,7 +48,6 @@ puts "Total: $($sum + $tax)"
 % set c $($a + $b)
 75
 ```
-
 ### String Interpolation
 ```tcl
 % puts "The sum of $a and $b is $($a + $b)"
@@ -146,12 +158,13 @@ set total $(
 
 ## Implementation Details
 
-### Files Modified
+### Files Modified plus a standard .test file
 
 Only two files in the Tcl core were modified:
 
 1. **tclParse.c** - Parser modifications (2 functions)
 2. **tclNamesp.c** - Error reporting fix (1 function)
+3. **aaaasubexpr.test** - test file to drop into test directory
 
 ### Changes Made
 
