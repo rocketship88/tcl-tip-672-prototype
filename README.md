@@ -281,9 +281,9 @@ Unfortunately, at present, expressions that do relational compares against liter
 % puts [expr {[string length "abc\{def"] + 1}]
 8
 ```
-## No support for Comments
+## Conditional support for Comments
 
-This $(expr) shorthand is for short expressions therefore it does not support comments. If these are needed, one should use the traditional expr command.
+This $(expr) shorthand is for short expressions therefore it does not fully support comments. If these are needed, one should use the traditional expr command. However, comments that are legit, and escape all the special characters, such as " { ( ) } and the comment is on the end of the line they will simply be passed as is into expr, so in that regard, they will work. 
 
 ## Precedent
 
