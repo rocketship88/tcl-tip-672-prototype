@@ -1124,7 +1124,12 @@ ParseTokens(
 	     * This is a variable reference. Call Tcl_ParseVarName to do all
 	     * the dirty work of parsing the name.
 	     */
-           int isExprSubst = (numBytes > 1 && src[1] == EXPR_TRIGGER_CHAR);
+           
+		 int isExprSubst = (numBytes > 1 && src[1] == EXPR_TRIGGER_CHAR
+#if EXPR_SUBST_MODE == 2
+                        && numBytes > 2 && src[2] == '('
+#endif
+		                    );          
         	    varToken = parsePtr->numTokens;
         	    if (Tcl_ParseVarName(parsePtr->interp, src, numBytes, parsePtr,
         		    1) != TCL_OK) {
