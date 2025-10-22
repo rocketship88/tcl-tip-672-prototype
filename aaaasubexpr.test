@@ -594,6 +594,16 @@ test subexpr-error-4.57 {Unbalanced nested parens - too many open} {
     string match "*missing close-paren*" $msg
 } 1
 
+test subexpr-edge-4.58 {bare string with unescaped $. and no (} { ;# these two below assume mode 2 with =, but should work in any case
+    catch {set result $=} msg
+    expr {$msg eq "\$\="}
+} 1
+
+
+test subexpr-edge-4.59 {bare string with unescaped $. and no ( inside quotes} {
+    catch {set result "$="} msg
+    expr {$msg eq "\$\="}
+} 1
 
 
 } ;# end namespace
@@ -622,4 +632,5 @@ if { $::mytest } {
 } ;# end mytest
 catch {namespace delete ::tcl::test::subexpr}
 return
+
 
