@@ -451,7 +451,7 @@ This is another area that needs improvement and likely requires deeper integrati
 
 This expression substitution feature exposed a lurking issue in Tcl's error line calculation code. The code made assumptions that have always held true throughout Tcl's history - no one has likely ever introduced synthetic command strings in this way before. 
 
-### The Original Code
+### The Original Code (in TclLogCommandInfo)
 
 ```c
 if (command != NULL) {
@@ -469,6 +469,7 @@ if (command != NULL) {
 
 **The lurking issue:** This code makes assumptions that have always been valid:
 - Assumes `command >= script` (command pointer is within or after script)
+- Comment states of script: (must be <= command) but doesn't enforce it
 - Assumes scanning from `script` to `command` will eventually terminate
 - No explicit safety checks because these assumptions have never been violated
 
@@ -478,7 +479,7 @@ There appear to be several cases where crashes occurred. The first was found in 
 
 This would indicate that for a procedure, the body is stored separate from the original script code. 
 
-At present it is unknown how to properly deal with this issue. When the error is in a procedure it will always report the last line number of the procedure. In interactive mode I didn't see where a line number was reported. It could be that interactive mode code knows how to better handle this and perhaps someone familiar with that code might provide some assistance.
+At present it is unknown how to properly deal with this issue. When the error is in a procedure it will always report the last line number of the procedure. In interactive mode I didn't see where a line number was reported in errorInfo. It could be that interactive mode code knows how to better handle this and perhaps someone familiar with that code might provide some assistance.
 
  
 
