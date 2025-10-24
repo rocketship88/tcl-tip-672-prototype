@@ -1,4 +1,4 @@
-[expression_substitution_analysis.md](https://github.com/user-attachments/files/23112517/expression_substitution_analysis.md)
+
 # Analysis of Expression Substitution in tclParse.c
 
 > **Note on Line Numbers:** All line numbers in this document refer to Visual Studio/Beyond Compare line numbering, which does not count formfeed characters (`\f`) as line advances. Some editors like EditPadPro count formfeeds as lines, resulting in different line numbers (typically 12 lines higher by line 1486).
