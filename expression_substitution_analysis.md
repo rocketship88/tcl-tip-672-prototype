@@ -449,7 +449,7 @@ This is another area that needs improvement and likely requires deeper integrati
 
 ## Related Bug Fix: tclNamesp.c Error Line Calculation (Critical)
 
-This expression substitution feature exposed a lurking issue in Tcl's error line calculation code. The code made assumptions that have always held true throughout Tcl's history - no one has likely ever introduced synthetic command strings at different memory locations before. The fix is in `tclNamesp.c` and is the **second of only two .c files modified** for this feature.
+This expression substitution feature exposed a lurking issue in Tcl's error line calculation code. The code made assumptions that have always held true throughout Tcl's history - no one has likely ever introduced synthetic command strings in this way before. 
 
 ### The Original Code
 
@@ -472,27 +472,17 @@ if (command != NULL) {
 - Assumes scanning from `script` to `command` will eventually terminate
 - No explicit safety checks because these assumptions have never been violated
 
-This wouldn't have been a bug until synthetic strings at different memory locations were introduced.
-
 ### The Crash Scenario with Synthetic Strings
 
-When expression substitution creates a synthetic command string:
+There appear to be several cases where crashes occurred. The first was found in interactive mode, when there is no actual script and so it is possibly pointing to a copy of the input text also in dynamic memory. But when the code is in a procedure body, the variable script definitely points to the procedure's body, as would be seen via [info body]. The name, args, opening and closing braces are not there, and it is null terminated 1 byte after the last character of the body. 
 
-1. Synthetic string allocated at line 1548: `char *synthetic = Tcl_Alloc(syntheticLen + 1);`
-2. String is properly null-terminated at line 1553: `synthetic[syntheticLen] = '\0';`
-3. Token points to synthetic memory: `varToken->start = synthetic;` (line 1572)
-4. Error occurs in the expression
-5. Error reporting tries to calculate line number
-6. **Crash occurs:**
-   - `command` pointer points to synthetic allocated memory
-   - `script` pointer points to original source memory  
-   - `command < script` (synthetic happens to be at a lower memory address due to dynamic allocation)
-   - Loop condition `p != command` scans **forward** from `script`, trying to reach `command`
-   - Since `command` is at a lower address, the loop will **never** reach it
-   - Continues scanning forward through memory indefinitely until hitting invalid memory
-   - **Access violation crash**
+This would indicate that for a procedure, the body is stored separate from the original script code. 
 
-### The Fix
+At present it is unknown how to properly deal with this issue. When the error is in a procedure it will always report the last line number of the procedure. In interactive mode I didn't see where a line number was reported. It could be that interactive mode code knows how to better handle this and perhaps someone familiar with that code might provide some assistance.
+
+ 
+
+### The current workaround for the crash
 
 ```c
 if (command != NULL) {
@@ -517,12 +507,9 @@ if (command != NULL) {
 1. **Pointer relationship check:** `if (command >= script)` - only scan if pointers are in valid order
 2. **Null terminator check:** `&& *p != '\0'` - stop if we hit end of string
 3. **Safe default:** If something is wrong, use line 1 instead of crashing
+4. **Needs Further analysis** This very likely needs a core team expert to help
 
-### Why This Fix Was Finally Needed
 
-The expression substitution feature introduces synthetic strings at different memory locations, which violates the assumptions the original code made. The fix adds safety checks that were finally needed once command pointers could exist outside the script's memory region.
-
-The synthetic string is properly allocated with size + 1 to accommodate the null terminator (line 1548), and is explicitly null-terminated (line 1553), so the `*p != '\0'` check will work correctly.
 
 ## Performance Considerations
 
