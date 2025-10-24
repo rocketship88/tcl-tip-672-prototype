@@ -1,4 +1,3 @@
-
 # Analysis of Expression Substitution in tclParse.c
 
 > **Note on Line Numbers:** All line numbers in this document refer to Visual Studio/Beyond Compare line numbering, which does not count formfeed characters (`\f`) as line advances. Some editors like EditPadPro count formfeeds as lines, resulting in different line numbers (typically 12 lines higher by line 1486).
@@ -448,21 +447,90 @@ When syntax errors occur in the expression, the error messages currently **point
 
 This is another area that needs improvement and likely requires deeper integration with Tcl's error reporting mechanisms.
 
+## Related Bug Fix: tclNamesp.c Error Line Calculation (Critical)
+
+This expression substitution feature exposed a lurking issue in Tcl's error line calculation code. The code made assumptions that have always held true throughout Tcl's history - no one has likely ever introduced synthetic command strings at different memory locations before. The fix is in `tclNamesp.c` and is the **second of only two .c files modified** for this feature.
+
+### The Original Code
+
+```c
+if (command != NULL) {
+    /*
+     * Compute the line number where the error occurred.
+     */
+    iPtr->errorLine = 1;
+    for (p = script; p != command; p++) {
+        if (*p == '\n') {
+            iPtr->errorLine++;
+        }
+    }
+}
+```
+
+**The lurking issue:** This code makes assumptions that have always been valid:
+- Assumes `command >= script` (command pointer is within or after script)
+- Assumes scanning from `script` to `command` will eventually terminate
+- No explicit safety checks because these assumptions have never been violated
+
+This wouldn't have been a bug until synthetic strings at different memory locations were introduced.
+
+### The Crash Scenario with Synthetic Strings
+
+When expression substitution creates a synthetic command string:
+
+1. Synthetic string allocated at line 1548: `char *synthetic = Tcl_Alloc(syntheticLen + 1);`
+2. String is properly null-terminated at line 1553: `synthetic[syntheticLen] = '\0';`
+3. Token points to synthetic memory: `varToken->start = synthetic;` (line 1572)
+4. Error occurs in the expression
+5. Error reporting tries to calculate line number
+6. **Crash occurs:**
+   - `command` pointer points to synthetic allocated memory
+   - `script` pointer points to original source memory  
+   - `command < script` (synthetic happens to be at a lower memory address due to dynamic allocation)
+   - Loop condition `p != command` scans **forward** from `script`, trying to reach `command`
+   - Since `command` is at a lower address, the loop will **never** reach it
+   - Continues scanning forward through memory indefinitely until hitting invalid memory
+   - **Access violation crash**
+
+### The Fix
+
+```c
+if (command != NULL) {
+    /*
+     * Compute the line number where the error occurred.
+     */
+    iPtr->errorLine = 1;
+    
+    // Only scan if command appears to be within script's memory region
+    if (command >= script) {
+        for (p = script; p != command && *p != '\0'; p++) {
+            if (*p == '\n') {
+                iPtr->errorLine++;
+            }
+        }
+    }
+    // If command < script, something is wrong - just use line 1
+}
+```
+
+**Safety improvements:**
+1. **Pointer relationship check:** `if (command >= script)` - only scan if pointers are in valid order
+2. **Null terminator check:** `&& *p != '\0'` - stop if we hit end of string
+3. **Safe default:** If something is wrong, use line 1 instead of crashing
+
+### Why This Fix Was Finally Needed
+
+The expression substitution feature introduces synthetic strings at different memory locations, which violates the assumptions the original code made. The fix adds safety checks that were finally needed once command pointers could exist outside the script's memory region.
+
+The synthetic string is properly allocated with size + 1 to accommodate the null terminator (line 1548), and is explicitly null-terminated (line 1553), so the `*p != '\0'` check will work correctly.
+
 ## Performance Considerations
 
 1. **Parse-time overhead**: Expression validation happens during parsing
 2. **Memory allocation**: One allocation per expression substitution
-3. **Double parsing**: Expression is parsed once as synthetic command, then again at evaluation
+3. **Validation parsing**: Expression is parsed once during validation to check syntax, then later the code is compiled to bytecode and runs from bytecode (not re-parsed during execution)
 4. **Trade-off**: Slight parse-time cost for cleaner syntax and earlier error detection
 
 ## Conclusion
 
-This is an elegant extension to Tcl that:
-- Provides convenient inline expression syntax
-- Maintains full backward compatibility (when using Mode 3)
-- Reuses existing infrastructure
-- Handles complex nested cases correctly
-- Reports errors at the right location
-- Requires minimal code changes to Tcl's parser
-
-The configurable mode system allows developers to choose the syntax that best fits their needs and avoids conflicts with existing code.
+This implementation serves as a working prototype demonstrating configurable expression substitution syntax for Tcl. The three-mode configuration system and this analysis provide the information needed by the core Tcl developers in making a decision on whether and how to adopt this feature.
