@@ -117,19 +117,24 @@ const unsigned char tclCharTypeTable[] = {
 };
 
 // ===== Configuration for expression substitution syntax =====
-#define EXPR_SUBST_MODE 1           // 1 = $(expr), 2 = $X(expr)
-#define EXPR_SUBST_CHAR '='         // Character for mode 2: '^', '=', '@', etc.
+#define EXPR_SUBST_MODE 3           // 1 = $(expr), 2 = $X(expr), 3 = $((expr))
+#define EXPR_SUBST_CHAR '^'         // Character for mode 2: '^', '=', '@', etc.
 
 #if EXPR_SUBST_MODE == 1
     static const char EXPR_TRIGGER_CHAR = '(';
     static const int EXPR_SRC_ADVANCE = 1;
     static const int EXPR_SIZE_DIFF = 6;
     static const char* EXPR_ERROR_MSG = "missing close-paren for $(";
-#else
+#elif EXPR_SUBST_MODE == 2
     static const char EXPR_TRIGGER_CHAR = EXPR_SUBST_CHAR;
     static const int EXPR_SRC_ADVANCE = 2;
     static const int EXPR_SIZE_DIFF = 5;
     static const char* EXPR_ERROR_MSG = "missing close-paren for $X(";
+#else  // Mode 3
+    static const char EXPR_TRIGGER_CHAR = '(';
+    static const int EXPR_SRC_ADVANCE = 2;
+    static const int EXPR_SIZE_DIFF = 4;
+    static const char* EXPR_ERROR_MSG = "missing close-paren expected )) at end of $(( expression";
 #endif
 
 /*
@@ -1124,23 +1129,25 @@ ParseTokens(
 	     * This is a variable reference. Call Tcl_ParseVarName to do all
 	     * the dirty work of parsing the name.
 	     */
-           
-		 int isExprSubst = (numBytes > 1 && src[1] == EXPR_TRIGGER_CHAR
-#if EXPR_SUBST_MODE == 2
-                        && numBytes > 2 && src[2] == '('
+
+             int isExprSubst = (numBytes > 1 && src[1] == EXPR_TRIGGER_CHAR
+#if EXPR_SUBST_MODE > 1
+                    && numBytes > 2 && src[2] == '('
 #endif
-		                    );          
-        	    varToken = parsePtr->numTokens;
-        	    if (Tcl_ParseVarName(parsePtr->interp, src, numBytes, parsePtr,
-        		    1) != TCL_OK) {
-        		return TCL_ERROR;
-        	    }
-        	    
-           if (isExprSubst) {
+            );
+           
+            varToken = parsePtr->numTokens;
+            if (Tcl_ParseVarName(parsePtr->interp, src, numBytes, parsePtr,
+                    1) != TCL_OK) {
+                return TCL_ERROR;
+            }
+            
+            if (isExprSubst) {
                 // For $(expr), the COMMAND token has synthetic string length
                 // but we need to advance by original $(...)  length
-                // Mode 1: "[expr {" (7) + "}]" (2) - "$(" (2) - ")" (1) = 6
-                // Mode 2: "[expr {" (7) + "}]" (2) - "$X(" (3) - ")" (1) = 5
+                // Mode 1: "[expr {" (7) + "}]" (2) -  "$(" (2) - ")"  (1) = 6
+                // Mode 2: "[expr {" (7) + "}]" (2) - "$X(" (3) - ")"  (1) = 5
+                // Mode 3: "[expr {" (7) + "}]" (2) - "$((" (3) - "))" (2) = 4
                 Tcl_Size syntheticSize = parsePtr->tokenPtr[varToken].size;
                 Tcl_Size originalSize = syntheticSize - EXPR_SIZE_DIFF;
                 src += originalSize;
@@ -1470,99 +1477,105 @@ Tcl_ParseVarName(
 
 
 
-} else if (*src == EXPR_TRIGGER_CHAR
-#if EXPR_SUBST_MODE == 2
+    } else if (*src == EXPR_TRIGGER_CHAR
+#if EXPR_SUBST_MODE > 1
            && numBytes >= 2 && src[1] == '('
 #endif
-    ) {
-    // NEW: Check for '$(' - expression substitution
-    const char *exprStart = src + EXPR_SRC_ADVANCE;
-    const char *exprEnd;
-    int parenDepth = 1;
-    int bracketDepth = 0;
-    int betweenQuotes = 0; // only important if using string relationals, eq, ne, etc. and using "literal \("
-    const char *dollarParenStart = src - 1;  // Points to the '$' 
-    
-    src += EXPR_SRC_ADVANCE;
-    numBytes -= EXPR_SRC_ADVANCE;
-    
-    // Find matching close paren
-    while (numBytes > 0 && parenDepth > 0) {
-        char ch = *src;
+        ) {
+        // NEW: Check for '$(' - expression substitution
+        const char *exprStart = src + EXPR_SRC_ADVANCE;
+        const char *exprEnd;
+        int parenDepth = 1;
+        int bracketDepth = 0;
+        int betweenQuotes = 0; // only important if using string relationals, eq, ne, etc. and using "literal \("
+        const char *dollarParenStart = src - 1;  // Points to the '$' 
         
-        // Check for end-of-input conditions
-        if (ch == '\0') {
-            break;  // Incomplete, will be caught below
-        }
+        src += EXPR_SRC_ADVANCE;
+        numBytes -= EXPR_SRC_ADVANCE;
         
-        if (ch == '(') {
-            if(bracketDepth<=0 && betweenQuotes == 0)parenDepth++; // parens inside command substitutions [...] don't count for balancing, or with "xxx" and won't need escaping
-        } else if (bracketDepth == 0 && ch == '"') {
-            betweenQuotes = 1 - betweenQuotes;
-        } else if (ch == ')') {
-            if(bracketDepth<=0 && betweenQuotes == 0)parenDepth--;
-            if (parenDepth == 0) {
-                break;
+        // Find matching close paren
+        while (numBytes > 0 && parenDepth > 0) {
+            char ch = *src;
+            
+            // Check for end-of-input conditions
+            if (ch == '\0') {
+                break;  // Incomplete, will be caught below
             }
-        } else if (ch == ']'  && betweenQuotes == 0) {
-              bracketDepth--;  // these 2 checks tell us if we're in a [...] command substitution, don't adjust if inside quotes
-        } else if (ch == '['  && betweenQuotes == 0) {
-              bracketDepth++;  
-        } else if (ch == '\\' && numBytes > 1) {
+            
+            if (ch == '(') {
+                if(bracketDepth<=0 && betweenQuotes == 0)parenDepth++; // parens inside command substitutions [...] don't count for balancing, or with "xxx" and won't need escaping
+            } else if (bracketDepth == 0 && ch == '"') {
+                betweenQuotes = 1 - betweenQuotes;
+            } else if (ch == ')') {
+                if(bracketDepth<=0 && betweenQuotes == 0)parenDepth--;
+                if (parenDepth == 0) {
+                    break;
+                }
+            } else if (ch == ']'  && betweenQuotes == 0) {
+                  bracketDepth--;  // these 2 checks tell us if we're in a [...] command substitution, don't adjust if inside quotes
+            } else if (ch == '['  && betweenQuotes == 0) {
+                  bracketDepth++;  
+            } else if (ch == '\\' && numBytes > 1) {
+                src++;
+                numBytes--;
+            }
             src++;
             numBytes--;
-        }
-        src++;
-        numBytes--;
-    }    
-    if (parenDepth != 0) {
-        // Error: unmatched paren
-        if (parsePtr->interp != NULL) {
-            Tcl_SetObjResult(parsePtr->interp, 
-                Tcl_NewStringObj(EXPR_ERROR_MSG, -1));
-        }
-        parsePtr->errorType = TCL_PARSE_MISSING_PAREN;
-        parsePtr->term = tokenPtr->start - 1;
-        parsePtr->incomplete = 1;
-        goto error;
-    }
-    
-    exprEnd = src;  // src now points to the ')'
-    
-    // Create synthetic command: "[expr {expression}]"
-    Tcl_Size exprLen = exprEnd - exprStart;
-    Tcl_Size syntheticLen = exprLen + 9;  // "[expr {" + expr + "}]"
-    char *synthetic = Tcl_Alloc(syntheticLen + 1);
-    
-    memcpy(synthetic, "[expr {", 7);
-    memcpy(synthetic + 7, exprStart, exprLen);
-    memcpy(synthetic + 7 + exprLen, "}]", 3);
-    synthetic[syntheticLen] = '\0';
-    
-    // Parse the synthetic command substitution to validate syntax
-    Tcl_Parse nestedParse;
-    if (Tcl_ParseCommand(parsePtr->interp, synthetic, syntheticLen,
-            0, &nestedParse) != TCL_OK) {
-        Tcl_Free(synthetic);
+        }    
+   
+        if (parenDepth != 0
+#if EXPR_SUBST_MODE == 3
+            || numBytes <= 1 || src[1] != ')'
+#endif   
+        ) {
         
-  // Copy error information but adjust pointers back to original
-        parsePtr->errorType = nestedParse.errorType;
-        parsePtr->term = dollarParenStart;  // Point to original $( location, not synthetic
-        parsePtr->incomplete = nestedParse.incomplete;
+            // Error: unmatched paren
+            if (parsePtr->interp != NULL) {
+                Tcl_SetObjResult(parsePtr->interp, 
+                    Tcl_NewStringObj(EXPR_ERROR_MSG, -1));
+            }
+            parsePtr->errorType = TCL_PARSE_MISSING_PAREN;
+            parsePtr->term = tokenPtr->start - 1;
+            parsePtr->incomplete = 0;
+            goto error;
+        }
+    
+        exprEnd = src;  // src now points to the ')'
         
-        goto error;
-    }
-    
-    // Transform the VARIABLE token (at varIndex) into a COMMAND token
-    Tcl_Token *varToken = &parsePtr->tokenPtr[varIndex];
-    varToken->type = TCL_TOKEN_COMMAND;
-    varToken->start = synthetic;              // Point to synthetic!
-    varToken->size = syntheticLen;            // try this
-    
-    Tcl_FreeParse(&nestedParse);
-    // TODO: synthetic is leaked - will be found and parsed during execution
-    
-    return TCL_OK;  // Exit here, don't fall through to common cleanup
+        // Create synthetic command: "[expr {expression}]"
+        Tcl_Size exprLen = exprEnd - exprStart;
+        Tcl_Size syntheticLen = exprLen + 9;  // "[expr {" + expr + "}]"
+        char *synthetic = Tcl_Alloc(syntheticLen + 1);
+        
+        memcpy(synthetic, "[expr {", 7);
+        memcpy(synthetic + 7, exprStart, exprLen);
+        memcpy(synthetic + 7 + exprLen, "}]", 3);
+        synthetic[syntheticLen] = '\0';
+        
+        // Parse the synthetic command substitution to validate syntax
+        Tcl_Parse nestedParse;
+        if (Tcl_ParseCommand(parsePtr->interp, synthetic, syntheticLen,
+                0, &nestedParse) != TCL_OK) {
+            Tcl_Free(synthetic);
+            
+      // Copy error information but adjust pointers back to original
+            parsePtr->errorType = nestedParse.errorType;
+            parsePtr->term = dollarParenStart;  // Point to original $( location, not synthetic
+            parsePtr->incomplete = nestedParse.incomplete;
+            
+            goto error;
+        }
+        
+        // Transform the VARIABLE token (at varIndex) into a COMMAND token
+        Tcl_Token *varToken = &parsePtr->tokenPtr[varIndex];
+        varToken->type = TCL_TOKEN_COMMAND;
+        varToken->start = synthetic;              // Point to synthetic!
+        varToken->size = syntheticLen;            // try this
+        
+        Tcl_FreeParse(&nestedParse);
+        // TODO: synthetic is leaked - will be found and parsed during execution
+        
+        return TCL_OK;  // Exit here, don't fall through to common cleanup
 
 
 
