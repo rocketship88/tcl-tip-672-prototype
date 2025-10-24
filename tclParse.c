@@ -117,8 +117,8 @@ const unsigned char tclCharTypeTable[] = {
 };
 
 // ===== Configuration for expression substitution syntax =====
-#define EXPR_SUBST_MODE 3           // 1 = $(expr), 2 = $X(expr), 3 = $((expr))
-#define EXPR_SUBST_CHAR '^'         // Character for mode 2: '^', '=', '@', etc.
+#define EXPR_SUBST_MODE 1           // 1 = $(expr), 2 = $X(expr), 3 = $((expr))
+#define EXPR_SUBST_CHAR '='         // Character for mode 2: '^', '=', '@', etc.
 
 #if EXPR_SUBST_MODE == 1
     static const char EXPR_TRIGGER_CHAR = '(';
